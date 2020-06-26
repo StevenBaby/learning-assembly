@@ -72,5 +72,6 @@ END
 
 ## 参考资料
 
-- 王爽 - 《汇编语言》
+- [王爽 - 《汇编语言》](https://book.douban.com/subject/3037562/)
 - [emu8086](http://www.emu8086.com/)
+
