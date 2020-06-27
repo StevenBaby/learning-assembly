@@ -1,0 +1,21 @@
+ASSUME CS:CODE
+
+CODE SEGMENT
+
+    MOV AX, 100H
+    MOV DS,AX
+    MOV AX,0020H
+    MOV ES, AX
+    MOV BX, 0
+    MOV CX, 17H
+S:  MOV AL, [BX]
+    MOV ES:[BX], AL
+    INC BX
+    LOOP S
+
+    MOV AX, 4C00H
+    INT 21H
+
+CODE ENDS
+
+END
