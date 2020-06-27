@@ -1,0 +1,14 @@
+ASSUME CS:CODE
+
+CODE SEGMENT
+
+    MOV AX, 0
+    MOV DS, AX
+    MOV DS:[26H], AX
+
+    MOV AX,4C00H
+    INT 21H
+
+CODE ENDS
+
+END
