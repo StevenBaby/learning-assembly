@@ -1,0 +1,38 @@
+ASSUME CS:CODE, DS:DATA
+
+DATA SEGMENT
+    DB 'BaSiC'
+    DB 'iNfOrMaTiOn'
+DATA ENDS
+
+CODE SEGMENT
+START:
+    MOV AX, DATA
+    MOV DS, AX
+
+    MOV BX, 0
+    MOV CX, 5
+
+S:
+    MOV AL, [BX]
+    AND AL, 11011111B
+    MOV [BX], AL
+    INC BX
+    LOOP S
+
+    MOV BX, 5
+    MOV CX, 11
+
+S0:
+    MOV AL, [BX]
+    OR AL, 00100000B
+    MOV [BX], AL
+    INC BX
+    LOOP S0
+
+    MOV AX, 4C00H
+    INT 21H
+
+CODE ENDS
+
+END START
