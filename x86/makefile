@@ -16,6 +16,7 @@ endif
 
 bochs: $(BUILD)/harddisk.img
 	-
+	@rm -rf $(BUILD)/harddisk.img.lock
 	cd $(BUILD) && bochs -q
 
 clean:
