@@ -4,7 +4,7 @@
     mov ax, 0x0003; clear screen
     int 0x10;
 
-    mov ax,0xb800                 ;指向文本模式的显示缓冲区
+    mov ax,video  ;指向文本模式的显示缓冲区
     mov es,ax
 
     ;以下显示字符串"Label offset:"
