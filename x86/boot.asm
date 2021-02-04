@@ -16,6 +16,11 @@ print_loop:
 print_done:
     ret
 
+test:
+
+    xchg bx, bx
+    ret
+
 _start:
     mov ax, cs;
     mov ds, ax;
@@ -27,8 +32,6 @@ _start:
 
     mov ax,video  ;指向文本模式的显示缓冲区
     mov es,ax
-
-    ; xchg bx, bx; magic break point
 
     ;以下显示字符串"Label offset:"
     mov si, message
@@ -52,7 +55,9 @@ number_loop:
 
     mov si, number
     call print
-    
+
+    call test
+
 infi: jmp near infi                 ;无限循环
 
 string: db '0123456789ABCDEF', 0
