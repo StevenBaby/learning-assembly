@@ -1,7 +1,7 @@
-[org 0x7c00]
+    boot_base equ 0x7c00;
+    video_base equ 0xb800;
 
-    base equ 0x7c00;
-    video equ 0xb800;
+section mbr align=16 vstart=0x7c00
     jmp _start
 
 print:
@@ -18,54 +18,44 @@ print_done:
 
 _start:
     ; xchg bx, bx;
+    mov ax, 0x0003; clear screen
+    int 0x10;
 
     mov ax, cs;
     mov ds, ax;
     mov ss, ax;
-    mov sp, base;
+    mov sp, boot_base;
 
-    mov ax, 0x0003; clear screen
-    int 0x10;
-
-    mov ax,video  ;指向文本模式的显示缓冲区
+    mov ax,video_base  ;指向文本模式的显示缓冲区
     mov es,ax
 
-    ;以下显示字符串 message
-    mov si, message
-    call print
+    jmp $
+    ; mov ax, [cs:user_base]
+    ; mov dx, [cs:user_base + 0x02]
+    ; mov bx, 16
+    ; div bx
+    ; mov ds, ax
+    ; mov es, ax
 
-    xor ax, ax
-    mov cx, 100
+calculate_segment_base:
+    ; calculate 
+    ;计算16位段地址
+    ;输入：DX:AX=32位物理地址
+    ;返回：AX=16位段基地址 
 
-calculate:
-    add ax, cx
-    loop calculate
-
-    ; xchg bx, bx;
-
-    xor cx, cx
-split:
-    mov bx, 10;
-    mov dx, 0;
-    div bx ; (dx ax) / bx = 商(ax) 余数(dx)
-
-    add dl, 0x30;
     push dx
 
-    ; xchg bx, bx;
+    add ax, [cs:user_base]
+    add dx, [cs:user_base + 2]
+    shr ax, 4;
+    ror dx, 4;
+    and dx, 0xf000;
+    or ax, dx;
 
-    inc cx
-    cmp ax, 0
-    jne split
+    pop dx
+    ret
 
-show_result:
-    pop ax
-    mov ah, 0x0e ; 0000 黑色背景 1110 浅灰色，默认颜色
-    int 0x10;
-    loop show_result
-
-infi: jmp near infi                 ;无限循环
-
-message db "1+2+3+...+99+100=", 0; 字符串以 0 结尾
+user_base dd 0x10000;
+message db 'hello boot!!!', 0
 times   510 - ($ - $$) db 0
         dw 0xaa55; db 0x55,0xaa
