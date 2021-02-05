@@ -26,7 +26,23 @@ start:
     mov ds, ax
 
     call clear_screen
+
+    mov si, message
+    call print
+
     jmp $
+
+print:
+    cld
+print_loop:
+    lodsb
+    or al, al
+    jz print_done
+    mov ah, 0x0e ; 0000 黑色背景 1110 浅灰色，默认颜色
+    int 0x10;
+    jmp print_loop
+print_done:
+    ret
 
 code_end:
 

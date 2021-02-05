@@ -28,7 +28,7 @@ test: $(BUILD)/test.bin
 bochs: $(BUILD)/harddisk.img
 	-
 	@rm -rf $(BUILD)/harddisk.img.lock
-	# cd $(BUILD) && bochs -q
+	cd $(BUILD) && bochs -q
 
 clean:
 	rm -rf $(BUILD)/onix.img
