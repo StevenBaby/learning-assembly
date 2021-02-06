@@ -39,7 +39,97 @@ show_string:
     mov al, 22
     call scroll_screen
 
+    call write_harddisk
+
+    xchg bx, bx
     jmp $
+
+write_harddisk:
+    pusha
+    push ds
+
+    mov bx, message
+    mov byte [bx], 'K'
+
+    mov si, 100
+    xor di, di
+
+    mov ax, 0x1000
+    mov ds, ax
+
+    mov dx, [2]
+    mov ax, [0]
+    mov bx, 512
+    div bx
+    cmp dx, 0
+    je .direct
+    inc ax
+.direct:
+
+    ; xchg bx, bx;
+    mov cx, ax; 记录写入扇区数量
+
+    mov dx, 0x1f2
+    ; mov al, al
+    out dx, al ; 写入数量
+
+    inc dx ; 0x1f3
+    mov ax, si;
+    out dx, al;  lba 地址 7-0
+
+    inc dx; 0x1f4
+    mov al, ah;
+    out dx, al; lba address 15 - 8 
+
+    inc dx; 0x1f5
+    mov ax, di
+    out dx, al ; lba address 23 - 16
+
+    inc dx; 0x1f6
+    mov al, 0xe0
+    or al, ah; lba address 27-24
+    out dx, al; 
+
+    inc dx; 0x1f7
+    mov al, 0x30; command write
+    out dx, al
+
+    ; xchg bx, bx;
+
+.waits:
+    in al, dx
+    and al, 0x88
+    cmp al, 0x08
+    jnz .waits
+
+    ; xchg bx, bx;
+    xor bx, bx
+
+.write_sector:
+    push cx
+
+    mov cx, 256
+    mov dx, 0x1f0
+
+    .readw:
+        mov ax, [bx]
+        out dx, ax
+        ; in ax, dx
+        ; mov [bx], ax
+        add bx, 2
+        nop
+        nop
+        nop
+        nop
+        nop
+        loop .readw
+
+    pop cx
+    loop .write_sector
+
+    pop ds
+    popa
+    ret
 
 get_cursor:
     ; 将光标位置 写入 AX 寄存器
@@ -95,7 +185,10 @@ set_cursor:
 
 scroll_screen:
     ; 向上滚动 Al 行;
+
     pusha
+    push ds
+    push es
 
     mov bx, 0xb800;
     mov ds, bx;
@@ -129,7 +222,10 @@ scroll_screen:
     mov word [es:bx + si], 0x0720; 0x07 默认颜色; 0x20 空格
     loop .cls
 
+    pop es
+    pop ds
     popa
+
     ret
 
 print:
@@ -152,8 +248,9 @@ data_end:
 
 section stack align=16 vstart=0;
     ; resb 256
-    times 256 db 0; 干掉 warning
+    times 0x100 db 0; 干掉 warning
 stack_end:
 
 section trail align=16;
+    ending db 'program ending', 0
 program_end:
