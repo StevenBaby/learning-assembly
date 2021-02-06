@@ -26,196 +26,149 @@ start:
     mov si, message
     call print
 
+    mov al, 0x70
+    mov bl, 4
+    mul bl
+    mov bx, ax
+
+    cli
+
+    push es
+    mov ax, 0x0000
+    mov es, ax
+    mov word [es:bx], int_0x70
+    mov word [es:bx+2], cs
+    pop es
+
+    mov al,0x0b                        ;RTC寄存器B
+    or al,0x80                         ;阻断NMI 
+    out 0x70,al
+    mov al,0x12                        ;设置寄存器B，禁止周期性中断，开放更 
+    out 0x71,al                        ;新结束后中断，BCD码，24小时制 
+
+    mov al,0x0c
+    out 0x70,al
+    in al,0x71                         ;读RTC寄存器C，复位未决的中断状态
+
+    in al,0xa1                         ;读8259从片的IMR寄存器 
+    and al,0xfe                        ;清除bit 0(此位连接RTC)
+    out 0xa1,al                        ;写回此寄存器 
+
+    sti                                ;重新开放中断 
+
+    .idle:
+        hlt                                ;使CPU进入低功耗状态，直到用中断唤醒
+        jmp .idle
+
     jmp $
+
+int_0x70:
+        pusha
+        push ds
+        push es
+
+        mov al,0x0a                         ;阻断NMI。当然，通常是不必要的
+        or al,0x80                          
+        out 0x70,al
+        in al,0x71                          ;读寄存器A
+        test al,0x80                        ;测试第7位UIP 
+        jnz .return                         ;以上代码对于更新周期结束中断来说 
+                                            ;是不必要的 
+
+        xor al,al
+        or al,0x80
+        out 0x70,al
+        in al,0x71                         ;读RTC当前时间(秒)
+        call bcd_to_ascii
+        mov [seconds], ax
+
+
+        mov al, 2
+        or al, 0x80
+        out 0x70, al
+        in al, 0x71                         ;读RTC当前时间(秒)
+        call bcd_to_ascii
+        mov [minutes], ax
+
+        mov al, 4
+        or al, 0x80
+        out 0x70, al
+        in al, 0x71                         ;读RTC当前时间(秒)
+        call bcd_to_ascii
+        mov [hours], ax
+
+        mov al, 7
+        or al, 0x80
+        out 0x70, al
+        in al, 0x71                         ;读RTC当前时间(日)
+        call bcd_to_ascii
+        mov [days], ax
+
+
+        mov al, 8
+        or al, 0x80
+        out 0x70, al
+        in al, 0x71                         ;读RTC当前时间(月)
+        call bcd_to_ascii
+        mov [months], ax
+
+        mov al, 9
+        or al, 0x80
+        out 0x70, al
+        in al, 0x71                         ;读RTC当前时间(年)
+        call bcd_to_ascii
+        mov [years], ax
+
+        mov al,0x0c                         ;寄存器C的索引。且开放NMI 
+        out 0x70,al
+        in al,0x71                          ;读一下RTC的寄存器C，否则只发生一次中断
+                                            ;此处不考虑闹钟和周期性中断的情况 
+
+        mov ax,0xb800
+        mov es,ax
+
+        mov si, datetime
+        mov di, 12 * 160 + 30 * 2
+
+    .showtime:
+        mov ax, [si]
+        cmp ax, 0
+        je .return
+        movsb
+        inc di
+        jmp .showtime
+
+    .return:
+
+        mov al,0x20                        ;中断结束命令EOI 
+        out 0xa0,al                        ;向从片发送 
+        out 0x20,al                        ;向主片发送 
+
+        pop es
+        pop ds
+        popa
+
+        iret
+
+
+bcd_to_ascii:                            ;BCD码转ASCII
+                                         ;输入：AL=bcd码
+                                         ;输出：AX=ascii
+    mov ah,al                          ;分拆成两个数字 
+    and al,0x0f                        ;仅保留低4位 
+    add al,0x30                        ;转换成ASCII 
+
+    shr ah,4                           ;逻辑右移4位 
+    and ah,0x0f                        
+    add ah,0x30
+
+    xchg ah, al
+
+    ret
 
 clear_screen:
     mov ax, 0x3
     int 0x10;
-    ret
-
-write_harddisk:
-        pusha
-        push ds
-
-        mov bx, message
-        mov byte [bx], 'K'
-
-        mov si, 100
-        xor di, di
-
-        mov ax, 0x1000
-        mov ds, ax
-
-        mov dx, [2]
-        mov ax, [0]
-        mov bx, 512
-        div bx
-        cmp dx, 0
-        je .direct
-        inc ax
-
-    .direct:
-
-        ; xchg bx, bx;
-        mov cx, ax; 记录写入扇区数量
-
-        mov dx, 0x1f2
-        ; mov al, al
-        out dx, al ; 写入数量
-
-        inc dx ; 0x1f3
-        mov ax, si;
-        out dx, al;  lba 地址 7-0
-
-        inc dx; 0x1f4
-        mov al, ah;
-        out dx, al; lba address 15 - 8 
-
-        inc dx; 0x1f5
-        mov ax, di
-        out dx, al ; lba address 23 - 16
-
-        inc dx; 0x1f6
-        mov al, 0xe0
-        or al, ah; lba address 27-24
-        out dx, al; 
-
-        inc dx; 0x1f7
-        mov al, 0x30; command write
-        out dx, al
-
-        ; xchg bx, bx;
-
-    .waits:
-        in al, dx
-        and al, 0x88
-        cmp al, 0x08
-        jnz .waits
-
-        ; xchg bx, bx;
-        xor bx, bx
-
-    .write_sector:
-        push cx
-
-        mov cx, 256
-        mov dx, 0x1f0
-
-        .readw:
-            mov ax, [bx]
-            out dx, ax
-            ; in ax, dx
-            ; mov [bx], ax
-            add bx, 2
-            nop
-            nop
-            nop
-            nop
-            nop
-            loop .readw
-
-        pop cx
-        loop .write_sector
-
-        pop ds
-        popa
-        ret
-
-get_cursor:
-    ; 将光标位置 写入 AX 寄存器
-    push dx
-
-    mov dx, 0x3d4; 索引寄存器端口号
-    mov al, 0x0e ; 光标寄存器 高八位
-    out dx, al
-
-    mov dx, 0x3d5; 数据端口号
-    in al, dx; 获得高八位
-    mov ah, al;
-
-    mov dx, 0x3d4; 索引寄存器端口号
-    mov al, 0x0f ; 光标寄存器 低八位
-    out dx, al
-
-    mov dx, 0x3d5; 数据端口号
-    in al, dx; 获得低八位
-
-    pop dx
-    ret; 结果存在 ax 寄存器中
-
-set_cursor:
-    ; 将 AX 寄存器中的光标位置 写入显卡
-
-    push dx
-    push bx
-    push ax
-
-    mov bx, ax;
-
-    mov dx, 0x3d4; 索引寄存器端口号
-    mov al, 0x0e ; 光标寄存器 高八位
-    out dx, al
-
-    mov dx, 0x3d5; 数据端口号
-    mov al, bh; 获得高八位
-    out dx, al; 写入高八位
-
-    mov dx, 0x3d4; 索引寄存器端口号
-    mov al, 0x0f ; 光标寄存器 低八位
-    out dx, al
-
-    mov dx, 0x3d5; 数据端口号
-    mov al, bl; 获得低八位
-    out dx, al; 写入低八位
-
-    pop ax
-    pop bx
-    pop dx
-    ret;
-
-scroll_screen:
-    ; 向上滚动 Al 行;
-
-    pusha
-    push ds
-    push es
-
-    mov bx, 0xb800;
-    mov ds, bx;
-    mov es, bx;
-
-    cld; 递增方向
-
-    push ax;
-
-    mov ah, 80 * 2;
-    mul ah
-    mov si, ax;
-    mov di, 0x00
-
-    mov cx, 80 * 24;
-    rep movsw
-
-    pop ax;
-    mov ah, 80;
-    mul ah; 计算字符数量
-
-    ;清除新出现的行
-    mov bx, 25 * 80 * 2;
-    mov cx, ax;
-    shl ax, 1;
-    sub bx, ax;
-    mov si, ax;
-
-    .cls:
-    sub si, 2
-    mov word [es:bx + si], 0x0720; 0x07 默认颜色; 0x20 空格
-    loop .cls
-
-    pop es
-    pop ds
-    popa
-
     ret
 
 print:
@@ -236,6 +189,13 @@ code_end:
 
 section data align=16 vstart=0;
     message db 'Hello world!!!', 0
+    datetime db '20'
+    years db '21-'
+    months db '02-'
+    days db '02 '
+    hours db '02:'
+    minutes db '02:'
+    seconds db '02', 0
 data_end:
 
 section stack align=16 vstart=0;
