@@ -123,7 +123,7 @@ int_0x70:
         out 0x70,al
         in al,0x71                          ;读一下RTC的寄存器C，否则只发生一次中断
                                             ;此处不考虑闹钟和周期性中断的情况 
-
+    ; 将 datetime 处的内容拷贝到 显存，以显示时间
         mov ax,0xb800
         mov es,ax
 
@@ -154,15 +154,16 @@ int_0x70:
 bcd_to_ascii:                            ;BCD码转ASCII
                                          ;输入：AL=bcd码
                                          ;输出：AX=ascii
-    mov ah,al                          ;分拆成两个数字 
-    and al,0x0f                        ;仅保留低4位 
-    add al,0x30                        ;转换成ASCII 
+                                         ; 采用小端方式，可以直接写入内存
+                                         ; 设 AX = 0x0028
 
-    shr ah,4                           ;逻辑右移4位 
-    and ah,0x0f                        
-    add ah,0x30
+    mov ah, al                          ;分拆成两个数字  0x2828
+    and al, 0xf0                        ;仅保留高4位 0x2820
+    shr al, 4;                          ;0x2802
+    add al, 0x30                        ;转换成ASCII 0x2832
 
-    xchg ah, al
+    and ah, 0x0f                        ; 0x0832
+    add ah, 0x30                        ; 0x3832; 结果
 
     ret
 
