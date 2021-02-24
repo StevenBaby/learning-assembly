@@ -1,167 +1,199 @@
-    boot_base       equ 0x7c00;
-    video_base      equ 0xb800;
-    app_lba_start   equ 100;
-
 section mbr align=16 vstart=0x7c00
-    start:
-        ; xchg bx, bx;
-        mov ax, 0x0003; clear screen
-        int 0x10;
-
-        mov ax, cs;
-        mov ds, ax;
-        mov ss, ax;
-        mov sp, boot_base;
-
-        mov ax,video_base  ;指向文本模式的显示缓冲区
-        mov es,ax
-
-        ; 令 ds, es 指向 user_base 代表的位置
-        mov ax, [cs:user_base]
-        mov dx, [cs:user_base + 0x02]
-        mov bx, 16
-        div bx
-        mov ds, ax
-        mov es, ax
-
-        ; read first sector
-        xor di, di
-        mov si, app_lba_start
-        xor bx, bx
-
-        call read_harddisk
-
-        mov dx, [2]
-        mov ax, [0]
-        mov bx, 512
-        div bx
-        cmp dx, 0
-
-        ; xchg bx, bx;
-
-        jnz @1
-        dec ax
-    @1:
-        cmp ax, 0
-        jz direct
-
-        push ds
-        mov cx, ax
-    @2:
-        mov ax, ds
-        add ax, 0x20
-        mov ds, ax
-
-        xor bx, bx
-        inc si
-        call read_harddisk
-        loop @2
-        pop ds
-    direct:
-
-        mov dx, [0x08]
-        mov ax, [0x06]
-        call calc_segment_base
-
-        ; xchg bx, bx;
-
-        mov [0x06], ax
-
-        mov cx, [0x0a]
-        mov bx, 0x0c
-
-    realloc:
-        mov dx, [bx + 0x02]
-        mov ax, [bx]
-        call calc_segment_base
-
-        ; xchg bx, bx;
-
-        mov [bx], ax
-        add bx, 4
-        loop realloc
-
-    jmp far [0x04]
-
-read_harddisk:
-    pusha
-
-    mov dx, 0x1f2
-    mov al, 1
-    out dx, al ; 读取数量
-
-    inc dx ; 0x1f3
-    mov ax, si;
-    out dx, al;  lba 地址 7-0
-
-    inc dx; 0x1f4
-    mov al, ah;
-    out dx, al; lba address 15 - 8 
-
-    inc dx; 0x1f5
-    mov ax, di
-    out dx, al ; lba address 23 - 16
-
-    inc dx; 0x1f6
-    mov al, 0xe0
-    or al, ah; lba address 27-24
-    out dx, al; 
-
-    inc dx; 0x1f7
-    mov al, 0x20; command read
-    out dx, al
-
-    ; xchg bx, bx;
-
-.waits:
-    in al, dx
-    and al, 0x88
-    cmp al, 0x08
-    jnz .waits
-
-    ; xchg bx, bx;
-    mov cx, 256
-    mov dx, 0x1f0
-.readw:
-    in ax, dx
-    mov [bx], ax
-    add bx, 2
-    loop .readw
-
-    popa
-    ret
-
-calc_segment_base:
-    ; calculate 
-    ;计算16位段地址
-    ;输入：DX:AX=32位物理地址
-    ;返回：AX=16位段基地址
-
-    push dx
-
-    add ax, [cs:user_base]
-    add dx, [cs:user_base + 2]
-    shr ax, 4;
-    ror dx, 4;
-    and dx, 0xf000;
-    or ax, dx;
-
-    pop dx
-    ret
-
-print:
-    cld
-print_loop:
-    lodsb
-    or al, al
-    jz print_done
-    mov ah, 0x0e ; 0000 黑色背景 1110 浅灰色，默认颜色
+    mov ax, 0x0003; clear screen
     int 0x10;
-    jmp print_loop
-print_done:
-    ret
 
-user_base dd 0x10000;
-message db 'hello boot!!!', 0
-times   510 - ($ - $$) db 0
-        dw 0xaa55; db 0x55,0xaa
+    ;设置堆栈段和栈指针 
+    mov ax,cs      
+    mov ss,ax
+    mov sp,0x7c00
+
+    ; xchg bx, bx
+    ;计算GDT所在的逻辑段地址 
+    mov ax,[cs:gdt_base]        ;低16位 0x7e00
+    mov dx,[cs:gdt_base+0x02]   ;高16位 0x0000
+    mov bx,16        
+    div bx                             ;商(ax) 余数(dx) 
+    mov ds,ax                          ;令 DS 指向该段以进行操作
+    mov bx,dx                          ;段内起始偏移地址
+
+    ;创建0#描述符，它是空描述符，这是处理器的要求
+    xor si, si
+    mov dword [bx+si],0x00
+
+    add si, 4;
+    mov dword [bx+si],0x00
+
+    ;创建#1描述符，保护模式下的代码段描述符
+    add si, 4
+    mov dword [bx+si],0x7c0001ff 
+    ; 0111 1100 0000 0000 0000 0001 1111 1111
+    ; 线性基地址 15 - 0 0x7c00, 段界限 15 - 0 0x1ff
+
+    add si, 4;
+    mov dword [bx+si],0x00409800 ; 0000 0000 0100 0000 1001 1000 0000 0000
+    
+    ; 0x00; 段基地址 31 - 24
+    ; 0x4;
+        ; 0     ; G = 0 粒度字节，段的扩展范围从 1 字节到 1M 字节 (1B - 1MB)
+                ; G = 1 段界限是以 4KB 为单位
+        ; 1     ; D/B 默认操作数大小，默认的栈指针大小，上部边界标志； 
+                ; 代码段为 D，用于指示指令中默认的偏移地址和操作数尺寸。
+                ; D = 0 表示指令中的偏移地址或者操作数是 16 位的
+                ; D = 1, 指示32位的偏移地址或者操作数。具体的操作影响 使用 ip 还是 eip
+                ; 对于栈段来说，该位叫做 B 位，影响 sp / esp
+                ; 位的值也决定了栈的上部边界。如果 B=0, 那么栈段的上部边界（也就是SP 寄存器的最大值）为OxFFFF ; 
+                ; 如果B = 1, 那么栈段的上部边界 （也就是ESP 寄存器的最大值）为OxFFFFFFFF 。
+                ; 由于这里需要做 32 位保护模式，于是这个值应该一直是 1
+        ; 0 ; L 64 代码段标志，保留此位给 64 位操作系统使用。目前用不上
+        ; 0 ; AVL ; 好吧，该安排的都安排了，最后多出这么一位，不知道干什么用好，就给软件用吧
+    ; 0x0 ; 段界限 19 - 16
+
+    ; 0x9
+        ; 1 ; P = 1 该段目前在内存中
+
+        ; 00    ; DPL 特权级 0 最高特权级
+
+        ; 1     ; S = 1 属于存储器的段
+                ; S = 0 表示一个系统段
+    ; 0x8;
+    ; 1000  ; Type 表示描述符类型
+            ; 数据段：
+                ; X (0 不可执行) 
+                ; E (0 向上扩展，1 向下扩展)
+                ; W (0 只读，1 可写)
+                ; A (已访问位，处理器访问时置1，清理由软件负责，用于实现虚拟内存管理)
+            ; 代码段 
+                ; X(1 可执行)
+                ; C 
+                    ; 0 表示非依从的代码段，这样的代码段可以从与它特权级相同的代码段调用，或者通过门调用；
+                    ; 1 表示允许从低特权级的程序转移到该段执行。
+                ; R (0 不可读，1 可读)，用于限制操作系统和用户，而非CPU
+                ; A (已访问位，处理器访问时置1，清理由软件负责，用于实现虚拟内存管理)
+
+    ; 0x00 段基地址 23 - 16
+
+
+    ;创建#2描述符，保护模式下的数据段描述符（文本模式下的显示缓冲区）
+    add si, 4;
+    mov dword [bx+si],0x8000ffff; 线性基地址 15-0 0x8000; 段界限 15 - 0 0xffff;
+    add si, 4;
+    mov dword [bx+si],0x0040920b; 100000010010010 00001011
+
+    ; 0x00 ;段基地址 31 - 24
+    ; 0x40 ;
+        ; 0x4; 0100
+            ; 0 ; G 粒度字节
+            ; 1 ; D/B 32 位标志
+            ; 0 ; L
+            ; 0 ; AVL
+        ; 0x0; 段界限 19 - 16
+    ; 0x92 ;
+        ; 0x9 ; 1001 ;
+            ; 1 ; P 在内存中
+            ; 00 ; 特权级 0
+            ; 1 ; S 存储器段
+        ; 0x2 ; Type 0 数据段 0 向下扩展 1 可写 0 未访问
+    ; 0x0b ; 段基地址 23 - 16
+
+    ; 线性基地址 0x000b8000
+    ; 段界限 0x0ffff
+
+    ;创建#3描述符，保护模式下的堆栈段描述符
+    add si, 4;
+    mov dword [bx+si],0x00007a00 ; 线性基地址 15-0 0x0000; 段界限 15 - 0 0x7a00;
+
+    add si, 4;
+    mov dword [bx+si],0x00409600 ; 100000010010110 0000 0000
+
+    ; 0x00 ; 段基地址 31 - 24
+    ; 0x40
+        ; 0x4; 0100
+            ; 0 ; G 粒度字节
+            ; 1 ; D/B 32 位标志
+            ; 0 ; L
+            ; 0 ; AVL
+        ; 0x0; 段界限 19 - 16
+    ; 0x96
+        ; 0x9 ; 1001 ;
+            ; 1 ; P 在内存中
+            ; 00 ; 特权级 0
+            ; 1 ; S 存储器段
+        ; 0x6 ; Type 0 数据段 1 向上扩展 1 可写 0 未访问
+    ; 0x00 ; 段基地址 23 - 16
+
+    ; 线性基地址 0x00000000
+    ; 段界限 0x07a00
+
+    ;初始化描述符表寄存器GDTR
+    mov word [cs: gdt_size], 31  ;描述符表的界限（总字节数减一）   
+
+    ; xchg bx, bx
+    lgdt [cs: gdt_size] 
+    ; 在这6 字节的内存区域中，
+    ; 要求前（低） 16 位是GDT 的界限值，
+    ; 后（高） 32 位是GDT 的基地址。
+    ; 在初始状态下（计算机启动之后）
+    ; GDTR 的基地址被初始化为 0x00000000; 界限值为 0xffff 。
+
+    in al,0x92                         ;南桥芯片内的端口
+    or al,0000_0010B
+    out 0x92,al                        ;打开A20
+
+    cli                                ;保护模式下中断机制尚未建立，应 
+                                    ;禁止中断 
+    mov eax,cr0
+    or eax,1
+    mov cr0,eax                        ;设置PE位 Protection Enable
+
+    ;以下进入保护模式... ...
+    jmp dword 0x0008:(flush - 0x7c00)   ;16位的描述符选择子：32位偏移
+                                        ;清流水线并串行化处理器 
+                                        ; 0000_0000_0000_1000b
+
+    [bits 32] 
+
+flush:
+    mov cx,0000_0000_00010_0_00B         ;加载数据段选择子(10b)
+    mov ds,cx
+
+    ;以下在屏幕上显示"Protect mode OK."
+    mov byte [0x00],'P'  
+    mov byte [0x02],'r'
+    mov byte [0x04],'o'
+    mov byte [0x06],'t'
+    mov byte [0x08],'e'
+    mov byte [0x0a],'c'
+    mov byte [0x0c],'t'
+    mov byte [0x0e],' '
+    mov byte [0x10],'m'
+    mov byte [0x12],'o'
+    mov byte [0x14],'d'
+    mov byte [0x16],'e'
+    mov byte [0x18],' '
+    mov byte [0x1a],'O'
+    mov byte [0x1c],'K'
+
+    ;以下用简单的示例来帮助阐述32位保护模式下的堆栈操作 
+    mov cx,00000000000_11_000B         ;加载堆栈段选择子
+    mov ss,cx
+    mov esp,0x7c00
+
+    mov ebp,esp                        ;保存堆栈指针 
+    push byte '.'                      ;压入立即数（字节）
+    
+    sub ebp,4
+    cmp ebp,esp                        ;判断压入立即数时，ESP是否减4 
+    jnz ghalt                          
+    pop eax
+    mov [0x1e],al                      ;显示句点 
+
+ghalt:     
+    hlt                                ;已经禁止中断，将不会被唤醒 
+
+;-------------------------------------------------------------------------------
+
+    gdt_size    dw 0 ; GDT Size - 1 2B
+    gdt_base    dd 0x00007e00     ;GDT的物理地址 4B
+
+    times 510-($-$$) db 0
+                    db 0x55,0xaa
