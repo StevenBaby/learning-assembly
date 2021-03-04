@@ -15,8 +15,9 @@ endif
 
 bochs: $(BUILD)/harddisk.img
 	@rm -rf $(BUILD)/harddisk.img.lock
-	cd $(BUILD) && bochs -q
+	cd $(BUILD) && bochs -q -f ../bochsrc
 
 clean:
 	rm -rf $(BUILD)/harddisk.img*
+	rm -rf $(BUILD)/bx_enh_dbg.ini
 
