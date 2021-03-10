@@ -1,2 +1,6 @@
 x86/build/
 os/build/
+tutotrial/bx_enh_dbg.ini
+tutotrial/harddisk.img
+tutotrial/harddisk.img.lock
+tutotrial/boot.bin
