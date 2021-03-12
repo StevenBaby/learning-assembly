@@ -137,7 +137,6 @@ finish:
     jmp finish
 
 
-
 print:
     cld
     .print_loop:
@@ -168,9 +167,77 @@ protect_mode_start:
     mov ss, ax
     mov esp, LOADER_STACK_TOP
     mov ax, SELECTOR_VIDEO
+    mov gs, ax
+
+    call setup_page
+
+    sgdt [gdt_ptr]
+
+    mov ebx, [gdt_ptr + 2]
+    or dword [ebx + 0x18 + 4], 0xc0000000
+
+    add dword [gdt_ptr + 2], 0xc0000000
+    add esp, 0xc0000000
+
+    mov eax, PAGE_DIR_TABLE_ADDR
+    mov cr3, eax
+
+    mov eax, cr0
+    or eax, 0x80000000
+    mov cr0, eax
+
+    lgdt [gdt_ptr]
+
+    mov byte [gs: 160], "V"
 
     xchg bx, bx
-    mov gs, ax
-    xchg ebx, ebx
-
     jmp $
+
+
+setup_page:
+    mov ecx, 4096
+    mov esi, 0
+
+.reset_page:
+    mov byte [PAGE_DIR_TABLE_ADDR + esi], 0
+    inc esi
+    loop .reset_page
+
+.create_pde:
+    mov eax, PAGE_DIR_TABLE_ADDR
+    add eax, 0x1000
+    mov ebx, eax
+
+    or eax, PG_US_U | PG_RW_W | PG_P
+    mov [PAGE_DIR_TABLE_ADDR + 0], eax
+    mov [PAGE_DIR_TABLE_ADDR + 0xc00], eax
+
+    sub eax, 0x1000
+    mov [PAGE_DIR_TABLE_ADDR + 4092], eax
+
+;
+    mov ecx, 256
+    mov esi, 0
+    mov edx, PG_US_U | PG_RW_R | PG_P
+.create_pte:
+    mov [ebx + esi * 4], edx
+    add edx, 4096
+    inc esi
+    loop .create_pte
+
+    ;create other pde
+    mov eax, PAGE_DIR_TABLE_ADDR
+    add eax, 0x2000
+    or eax, PG_US_U | PG_RW_W | PG_P
+    mov ebx, PAGE_DIR_TABLE_ADDR
+    mov ecx, 254
+    mov esi, 759
+
+.create_kernel_pde:
+
+    mov [ebx + esi * 4], eax
+    inc esi
+    add eax, 0x1000
+    loop .create_kernel_pde
+
+    ret

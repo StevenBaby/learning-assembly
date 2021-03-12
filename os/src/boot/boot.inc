@@ -3,6 +3,8 @@ BOOT_BASE_ADDR equ 0x7c00
 LOADER_BASE_ADDR equ 0x900
 LOADER_START_SECTOR equ 0x2
 
+PAGE_DIR_TABLE_ADDR equ 0x100000
+
                                ;0_0_0_0_0000_0_00_0_0000b
                                ;G_D_L_A_LIMI_P_DP_S_TYPE
 
@@ -44,11 +46,17 @@ RPL3    equ 11b
 TI_GDT  equ 000b
 TI_LDT  equ 100b
 
-PG_P    equ 1b
-PG_RW_R equ 00b 
-PG_RW_W equ 10b 
-PG_US_S equ 000b 
-PG_US_U equ 100b 
+; pde explain
+; AVL_G_0_D_A_PCD_PWT_US_RW_P
+
+; pte explain
+; AVL_G_T_D_A_PCD_PWT_US_RW_P
+
+PG_P    equ 1b ; exists
+PG_RW_R equ 00b ; write disable
+PG_RW_W equ 10b ; write enable
+PG_US_S equ 000b ; system user
+PG_US_U equ 100b ; normal user
 
 GDT_CODE_ATTRIBUTE          equ (GDT_G_4K   | GDT_DB_32 | GDT_P_PRE | GDT_S_DATA | GDT_TYPE_CODE_READ)
 GDT_DATA_ATTRIBUTE          equ (GDT_G_4K   | GDT_DB_32 | GDT_P_PRE | GDT_S_DATA | GDT_TYPE_DATA_WRITE)
