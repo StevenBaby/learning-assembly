@@ -180,8 +180,8 @@ protect_mode_start:
     xchg bx, bx
     jmp $
 
-
 setup_page:
+
     ; xchg bx, bx
     mov ecx, PAGE_SIZE * 3
     mov esi, 0
@@ -226,22 +226,6 @@ setup_page:
     add edx, PAGE_SIZE
     inc esi
     loop .create_pte
-
-    ; xchg bx, bx
-
-    ;create other pde
-    mov eax, PAGE_DIR_TABLE_ADDR + (PAGE_SIZE * 2)
-    or eax, PAGE_ATTRIBUTE
-
-    mov ebx, PAGE_DIR_TABLE_ADDR
-    mov ecx, (0x3ff - 0x300 - 1); 后面的页数量
-    mov esi, 0x301; 从 0x301 开始
-
-.create_kernel_pde:
-    mov [ebx + esi * 4], eax
-    inc esi
-    add eax, PAGE_SIZE
-    loop .create_kernel_pde
 
     ; 设置 CR3 寄存器
     mov eax, PAGE_DIR_TABLE_ADDR
