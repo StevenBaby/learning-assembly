@@ -1,9 +1,11 @@
 BOOT_BASE_ADDR equ 0x7c00
+BASE_ADDRESS_LIMIT equ 0x100000; 1M 的空间
 
 LOADER_BASE_ADDR equ 0x900
 LOADER_START_SECTOR equ 0x2
 
-PAGE_DIR_TABLE_ADDR equ 0x100000
+PAGE_DIR_TABLE_ADDR equ 0x4000
+PAGE_SIZE           equ 0x1000 ; 4K = 4096
 
                                ;0_0_0_0_0000_0_00_0_0000b
                                ;G_D_L_A_LIMI_P_DP_S_TYPE
@@ -62,6 +64,7 @@ GDT_CODE_ATTRIBUTE          equ (GDT_G_4K   | GDT_DB_32 | GDT_P_PRE | GDT_S_DATA
 GDT_DATA_ATTRIBUTE          equ (GDT_G_4K   | GDT_DB_32 | GDT_P_PRE | GDT_S_DATA | GDT_TYPE_DATA_WRITE)
 GDT_VIDEO_ATTRIBUTE         equ (GDT_G_BYTE | GDT_DB_32 | GDT_P_PRE | GDT_S_DATA | GDT_TYPE_DATA_WRITE | GDT_DPL_3) 
 
+PAGE_ATTRIBUTE  equ PG_US_U | PG_RW_W | PG_P
 
 %macro GDTDescriptor 3; (base_address, limit, attribute)
     dw %2 & 0xffff
