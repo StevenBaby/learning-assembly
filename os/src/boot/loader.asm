@@ -285,7 +285,6 @@ setup_page:
     mov esi, 0
     mov edx, PAGE_ATTRIBUTE
 
-
 .create_pte:
     mov [ebx + esi * 4], edx
     add edx, PAGE_SIZE
