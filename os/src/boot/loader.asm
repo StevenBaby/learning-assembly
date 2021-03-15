@@ -1,4 +1,5 @@
 %include "boot.inc"
+%include "elf.inc"
 
 LOADER_STACK_TOP equ LOADER_BASE_ADDR
 
@@ -171,14 +172,79 @@ protect_mode_start:
     mov gs, ax
 
     call setup_page
+    call load_kernel
+    call init_kernel
 
-    xchg bx, bx
+    jmp SELECTOR_CODE: KERNEL_BASE_ADDR
+
+memcpy:
+    ; memcpy(dst, src, size)
+
+    cld
+    push ebp
+    mov ebp, esp
+    push ecx
+
+    mov edi, [ebp + 8]
+    mov esi, [ebp + 12]
+    mov ecx, [ebp + 16]
+    rep movsb
+
+    pop ecx
+    pop ebp
+    ret
 
 
-    mov byte [gs: 160], "V"
+init_kernel:
+    ; xchg bx, bx
+    xor eax, eax
+    xor ebx, ebx
+    xor ecx, ecx
+    xor edx, edx
 
-    xchg bx, bx
-    jmp $
+    mov ax, [KERNEL_BASE_ADDR + ELF_HEADER_OFFSET_TYPE]
+    cmp ax, 2
+    jne .failure ; invalid executable file
+
+    mov dx, [KERNEL_BASE_ADDR + ELF_HEADER_OFFSET_PHENTSIZE]
+    mov ebx, [KERNEL_BASE_ADDR + ELF_HEADER_OFFSET_PHOFF]
+    add ebx, KERNEL_BASE_ADDR
+    mov cx, [KERNEL_BASE_ADDR + ELF_HEADER_OFFSET_PHNUM]
+
+.each_segment:
+    cmp byte [ebx + 0], PT_NULL
+    je .PT_NULL
+
+    push dword [ebx + ELF_PROGRAM_OFFSET_FILESZ]
+    mov eax, [ebx + ELF_PROGRAM_OFFSET_OFFSET]
+    add eax, KERNEL_BASE_ADDR
+    push eax
+    push dword [ebx + ELF_PROGRAM_OFFSET_VADDR]
+    call memcpy
+    add esp, 12
+
+    ; xchg bx, bx
+
+.PT_NULL:
+    add ebx, edx
+    loop .each_segment
+    ret
+
+.failure:
+    sti
+    hlt
+    jmp .failure
+
+;-----------------------------------
+
+load_kernel:
+    mov eax, KERNEL_START_SECTOR
+    mov ebx, KERNEL_BASE_ADDR
+    mov cx, 200 ; 100KB
+    call read_disk
+    ret
+
+;------------------------------------
 
 setup_page:
 
@@ -237,3 +303,5 @@ setup_page:
     mov cr0, eax
 
     ret
+
+READ_DISK
