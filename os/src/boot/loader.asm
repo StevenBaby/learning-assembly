@@ -175,6 +175,7 @@ protect_mode_start:
     call load_kernel
     call init_kernel
 
+    mov esp, KERNEL_BASE_ADDR
     jmp SELECTOR_CODE: KERNEL_BASE_ADDR
 
 memcpy:
@@ -222,8 +223,6 @@ init_kernel:
     push dword [ebx + ELF_PROGRAM_OFFSET_VADDR]
     call memcpy
     add esp, 12
-
-    ; xchg bx, bx
 
 .PT_NULL:
     add ebx, edx
