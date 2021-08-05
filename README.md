@@ -12,7 +12,7 @@
 
 当然，如果有兴趣的话，可以参考下面我的另一个项目，
 
-<https://github.com/StevenKangWei/computer>
+<https://github.com/StevenBaby/computer>
 
 它基于 LogicCircuit 从门电路开始，一步步的实现了一个 8bit 计算机。并且实现了简单的汇编语言，也同样希望对你有所帮助。
 
